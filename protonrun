@@ -1,0 +1,12 @@
+#!/bin/bash
+
+DIR="$(dirname $1)"
+BIN="$(basename $1)"
+
+shift
+
+cd $DIR
+
+env WINEPREFIX=/home/tarso/.proton/pfx/ \
+    /home/tarso/.steam/root/compatibilitytools.d/Proton/files/bin/wine64 \
+    $BIN $@

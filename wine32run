@@ -1,0 +1,47 @@
+#!/bin/bash
+# 
+# Chooses between 32 and 64 prefixes and execute wine accordingly 
+# This tool expects wine from winehq repositories
+#
+# snortt@gmail.com
+# Sat Aug 10 17:03:02 EDT 2019
+# 
+
+# This will handle bad and ugly names
+IFS="
+"
+
+if [ "$#" -lt "1" ]; then
+    echo -e "Usage: $(basename $0) <action> [opt]"
+    echo -e "  actions: winecfg, wineboot, wineconsole, winetricks"
+    echo -e "  options: regular options you would pass to any action"
+    echo -e "  IF no action is given, regular wine command will be invoked with given opts"
+    exit 201
+fi
+
+# wine staging is in /opt/wine-staging
+PATH="/bin:usr/bin:/opt/wine-staging/bin/:~/bin/"
+WINE32HOME="/home/gabriel/.wine32"
+
+case "$1" in
+    "winecfg")
+        shift
+        WINEARCH=win32 WINEPREFIX=${WINE32HOME} winecfg $@
+        ;;
+    "wineboot")
+        shift
+        WINEARCH=win32 WINEPREFIX=${WINE32HOME} wineboot $@
+        ;;
+    "wineconsole")
+        shift
+        WINEARCH=win32 WINEPREFIX=${WINE32HOME} wineconsole $@ 
+        ;;
+    "winetricks")
+        shift
+        WINEARCH=win32 WINEPREFIX=${WINE32HOME} winetricks $@
+        ;;
+    *)
+        WINEARCH=win32 WINEPREFIX=${WINE32HOME} wine $@
+        ;;
+esac
+

@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+
+TARGETS="$@"
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $0 <dir1> <dir2> ... "
+	exit 1
+fi
+
+echo "Setting dirs to 755 on $TARGETS ..."
+find $TARGETS -type d -exec chmod 755 {} \; && echo "OK"
+echo "Setting files to 644 on $TARGETS ..." 
+find $TARGETS -type f -exec chmod 644 {} \; && echo "OK"
+

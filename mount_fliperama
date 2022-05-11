@@ -1,0 +1,21 @@
+#!/bin/bash
+
+
+HOME=~
+DIR="NFS_FLIPER/"
+IP="192.168.15.202"
+MOUNT="sudo mount -t nfs"
+UMOUNT="sudo umount -f -l"
+
+echo -en "Press \033[1;31my\033[0m to mount \033[1;34m@fliperama\033[0m NFS share or \033[1;31many key\033[0m to unmount:"
+read yesno < /dev/tty
+
+        if [ "x$yesno" = "xy" ]; then
+		mkdir ${HOME}/${DIR};
+		${MOUNT} ${IP}:/ ${HOME}/${DIR} -o nolock;
+		echo -e "\033[1;32mNFS share mounted at ~/NFS_Fliperama/\033[0m"
+	else
+		${UMOUNT} ${HOME}/${DIR};
+		rmdir ${HOME}/${DIR};
+		echo -e "\033[1;32mUnmount complete\033[0m"
+	fi

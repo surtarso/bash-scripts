@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# This tool provides access to a system's jail.
+# You can use it to enter on jails that contain Linux, Raspbian or RetroPie.
+# Additionaly, you can provide local directories so they are made available inside the jail! :)
+
+# Gabriel Marques
+# snortt@gmail.com
+# Fri May 3 15:42:43 EDT 2019
+# Updated: Fri Jan 10 21:53:51 EST 2020
+#
+
+BINDS=""
+has_binds="0"
+
+if [[ "$#" -lt "2" ]] && [[ "$1" != "--clean" ]]; then
+    echo -e "Usage: $(basename $0) <jail_rootdir> <user> [<bind_dir> <...>]"
+    echo -e "  jail_rootdir The root of your jail."
+    echo -e "  user         The user to act inside the jail."
+    echo -e "  bind_dir     Local dirs you also want available inside the jail."
+    echo -e ""
+    echo -e "Optionally, you can call me with --clean and I'll try to unmount any stuck dir"
+    echo -e ""
+    exit 200
+fi
+
+# Helper functions
+force_clear_mounts() {
+    # Find left overs and keep trying to umount them
+    # (sometimes you exit the jail, but some systems keep mounted!)
+    while mount | grep ${HOME} > /dev/null 2>&1; 
+    do
+        for left_over in $(mount | grep ${HOME} | tr -s " " | cut -d " " -f3); 
+        do
+            #sudo umount $left_over > /dev/null 2>&1
+            sudo umount $left_over
+            echo "U:$(basename $left_over) (left over)"
+        done
+        sleep 1
+    done
+}
+
+do_mounts() {
+    case $1 in
+        "on")
+            if [ -f /proc/sys/fs/binfmt_misc ]; then
+                sudo mount --bind /proc/sys/fs/binfmt_misc $ROOTDIR/proc/sys/fs/binfmt_misc > /dev/null 2>&1 && echo "M:binfmt" 
+            fi
+
+            sudo mount --bind /proc/ $ROOTDIR/proc/ > /dev/null 2>&1 && echo "M:proc"
+            sudo mount --bind /sys $ROOTDIR/sys > /dev/null 2>&1 && echo "M:sys"
+            sudo mount --bind /dev $ROOTDIR/dev > /dev/null 2>&1 && echo "M:dev"
+            sudo mount --bind /dev/pts $ROOTDIR/dev/pts > /dev/null 2>&1 && echo "M:pts"
+            #sudo mount --bind /run $ROOTDIR/run    # Careful here!
+            ;;
+
+        "off")
+            #if [ -d $ROOTDIR/proc/sys/fs/binfmt_misc/ ]; then 
+            if mount | grep "$ROOTDIR/proc/sys/fs/binfmt_misc/" > /dev/null 2>&1; then 
+                sudo umount $ROOTDIR/proc/sys/fs/binfmt_misc/ > /dev/null 2>&1 && echo "U:binfmt"
+            fi
+
+            #sudo umount $ROOTDIR/run   # Careful here!
+            sudo umount $ROOTDIR/dev/pts > /dev/null 2>&1 && echo "Umounted pts"
+            sudo umount $ROOTDIR/dev > /dev/null 2>&1 && echo "U:dev"
+            sudo umount $ROOTDIR/sys > /dev/null 2>&1 && echo "U:sys"
+            sudo umount $ROOTDIR/proc > /dev/null 2>&1 && echo "U:proc"
+            ;;
+    esac
+}
+
+# Anything stuck?
+if [ "$1" == "--clean" ]; then
+    force_clear_mounts
+    exit 201
+fi
+
+# Jails normally contain a bin directory (base commands!) 
+if [ ! -d ${1}/bin ]; then
+    echo "$1 does not seem to be a jail!"
+    exit 202
+else
+    ROOTDIR="$1"
+fi
+
+if [ -d ${2} -o -f ${2} ]; then
+    echo "$2 does not seem to be an user!"
+    exit 203
+else
+    USER="$2"
+fi
+
+echo -e "Mounting system dirs ..."
+do_mounts "on"
+
+# If more than 3 args, user wants to bind extra dirs inside jailed environment
+echo -e "Mounting additional requested directories ..."
+if [[ "$#" -ge "3" ]]; then
+    # Discard first and second args (already used at this point)
+    shift   # $1 is rootfs 
+    shift   # $2 is user to run as
+    for dir in $@
+    do
+        if [[ ! -d $ROOTDIR/$dir ]]; then 
+            echo -e "Creating $(basename $dir) ..."
+            sudo mkdir -p $ROOTDIR/$dir 
+        fi 
+        sudo mount --bind $dir $ROOTDIR/$dir 
+        BINDS="$BINDS $dir"
+        has_binds="1"
+    done
+fi
+
+echo -e "Entering jail $ROOTDIR" && \
+sudo chroot $ROOTDIR/ su -l $USER  && \
+
+echo -e "Unmounting directories ..." && \
+do_mounts "off"
+
+if [ "$has_binds" -eq "1" ]; then
+    echo -e "Umounting extra directories ..."
+    for d in ${BINDS}
+    do
+        sudo umount ${ROOTDIR}/$d > /dev/null 2>&1 && echo "U:$(basename ${d})"
+    done
+
+    force_clear_mounts 
+else
+    echo -e "No additional directory to unmount"
+fi
+
+echo -e "If you find some mounts still lingering around, call me with --clean"
+

@@ -1,2 +1,2 @@
-# bash-scripts
+## Bash Scripts
 My bash scripts for everyday use.

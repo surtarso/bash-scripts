@@ -1,0 +1,42 @@
+#!/bin/bash
+# 
+# Runs an application using an installed Proton
+# Gabriel Marques
+# snortt@gmail.com
+# 
+
+PFX="$HOME/.proton/pfx"
+STEAM="${HOME}/.steam/root/compatibilitytools.d/Proton/files/bin"
+WINEST="$STEAM/wine64"
+
+# Sanity and tidy up
+if [ ! -d ${PFX} ]; then
+    mkdir -p ${PFX} && echo "Created ${PFX}::OK"
+fi
+
+if [ ! -d "$STEAM" ]; then
+    echo "Unable to find $STEAM"
+    echo "Is GloriousEggRoll's Proton installed?"
+    echo "If yes, just go there and create a symlink called Proton"
+    exit 201
+fi
+
+# This will be the working directory (no need to touch)
+DIR="$(dirname $1)"
+# This will be the application to be run (no need to touch) 
+BIN="$(basename $1)"
+
+# Get rid of the provided application and keep additional args
+shift
+
+# Go the the working directory
+cd "$DIR"
+
+# Call the application with additional args, if any. 
+#env WINEPREFIX=${HOME}/.proton/pfx/ \
+#    ${HOME}/.steam/root/compatibilitytools.d/Proton/files/bin/wine64 \
+#    "$BIN" $@ 
+#
+# Keep the " around $BIN to protect names with spaces.
+env WINEPREFIX=${PFX} ${WINEST} "$BIN" $@ 
+

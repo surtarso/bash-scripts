@@ -1,0 +1,15 @@
+#!/bin/bash
+
+echo ""
+echo -e "\033[1;33m++ HDDs:\033[0;32m"
+sudo hddtemp /dev/sda /dev/sdb /dev/sdc /dev/sdd /dev/sde /dev/sdf
+
+echo ""
+echo -e "\033[1;33m++ PROCESSOR:\033[0;32m"
+sudo sensors k10temp-pci-00c3
+
+#echo -e "\033[1;33m++ PROCESSOR PWR:\033[0;32m"
+#sudo sensors fam15h_power-pci-00c4
+
+echo -e "\033[1;33m++ GPU:\033[0;32m"
+nvidia-smi

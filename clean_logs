@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# Get rid of old system logs.
+# To disable automatic execution, see /etc/rc.local 
+#
+# Snortt - snortt@gmail.com
+# Qui Out 20 17:33:02 BRST 2011
+#
+LOGSDIR="/var/log"
+MAILSDIR="/var/spool/mail"
+FILES2DEL="0 1 2 3 4 5 6 7 gz old"
+FORCE_FLAG="0"
+
+me="$(id -u)"
+if [ "$me" -ne "0" ]; then
+    echo "You need to be root!"
+    exit 201
+fi
+
+if [ "$1" == "-f" ]; then
+    FORCE_FLAG="1"
+fi
+
+echo -e "Cleaning up logs ..."
+for ext in $FILES2DEL
+do
+	find ${LOGSDIR} -type f -name "*.${ext}" -exec rm -f {} \;
+	echo -e "${ext} :: [OK]"
+done
+
+if [ "$FORCE_FLAG" == "0" ]; then
+    echo -e "Keeping current in use log files. Use \"-f\" if you want to get rid of those too."
+elif [ "$FORCE_FLAG" == "1" ]; then
+    echo -e "Truncating in use log files : [-f]"
+	for file in $(find ${LOGSDIR} -type f); do
+        echo "Truncated: $(date)" > "$file"
+    done
+else
+    echo -e "$FORCE_FLAG must be 0 or 1"
+fi
+
+rm -f ${MAILSDIR}/* && echo -e "MailBoxes erased:: [OK]"
+
+journalctl --vacuum-time=1d && echo -e "Journal logs vacummed:: [OK]"
+
+

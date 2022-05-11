@@ -1,0 +1,11 @@
+#!/bin/bash
+
+ME="$(id -u)"
+
+if [ "$ME" -ne "0" ]; then
+    echo "Precisa ser root!"
+    exit 201
+fi
+
+exim -bp | awk '/^ *[0-9]+[mhd]/{print "exim -Mrm " $3}' | bash
+

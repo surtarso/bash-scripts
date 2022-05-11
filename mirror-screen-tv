@@ -1,0 +1,5 @@
+#!/bin/bash
+# 
+# xrand --> para listar as resolucoes disponiveis
+xrandr --output VGA-1 --mode 1280x768 --scale 1x1 --output VGA-1 --same-as LVDS-1 --mode 1024x768 --scale 1.25x1.04
+

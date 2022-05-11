@@ -1,0 +1,377 @@
+#!/bin/bash
+#
+# This tool allows you to conveniently manage system image files, by using loop devices.
+# 
+# You can format / mount and umount them
+#
+# Gabriel Marques
+# snortt@gmail.com
+# Sat May  4 17:46:53 EDT 2019
+# Updated: Fri Jan 10 21:39:38 EST 2020
+#
+
+# Where to find the templates
+TEMPLATES="./templates"
+
+# General help and usage message
+help_me() {
+    echo -e "This tool helps you manage URCade system images."
+    echo -e "-----"
+    echo -e "Usage: $(basename $0) <opt> <file.img|device> [mount_point  [tarballs]]"
+    echo -e "opt:"
+    echo -e "  -c -> creates a new image file that can be partitioned and formatted."
+    echo -e "  -d -> display loop devices in use and their images."
+    echo -e "  -f -> format file.img or device partitions to receive new system."
+    echo -e "  -i -> installs tarballs files into image."
+    echo -e "  -l -> lists the PARTUUID for the image file."
+    echo -e "  -m -> mount file.img using a loop device. [mount_point]"
+    echo -e "  -p -> Partition file.img|device. Then use -f option to format. Boot partition is 64M"
+    echo -e "  -s -> sets the PARTUUID inside rootfs according to value from img file"
+    echo -e "  -u -> umount file.img and release used loop device [mount_point]."
+	echo -e "  -R -> remove stock files (themes,splashes) from image file."
+    echo -e "-----"
+    echo -e "Tips: "
+    echo -e "If mount_point is not provided, \"rootfs\" will be used by default."
+    echo -e "If multiple images are mounted, you can $(basename $0) -u <file.img> multiple times"
+    echo -e "-----"
+    echo -e "Examples:"
+    echo -e "$(basename $0) -c"
+    echo -e "$(basename $0) -d"
+    echo -e "$(basename $0) -m URCade-X.Y_NO-ROMs.img"
+    echo -e "$(basename $0) -m URCade-X.Y_NO-ROMs.img URCadeXY"
+    echo -e "$(basename $0) -u URCade-X.Y_NO-ROMs.img"
+    echo -e "$(basename $0) -R URCade-X.Y_NO-ROMs.img"
+    echo -e "$(basename $0) -s URCade-X.Y_NO-ROMs.img"
+    echo -e "$(basename $0) -l URCade-X.Y_NO-ROMs.img"
+    echo -e "$(basename $0) -p URCade-X.Y_NO-ROMs.img"
+    echo -e "$(basename $0) -p URCade-X.Y_NO-ROMs.img 128M"
+    echo -e "$(basename $0) -f URCade-X.Y_NO-ROMs.img"
+    echo -e "$(basename $0) -i URCade-X.Y_NO-ROMs.img URCadeXY tarball01.tar.bz2 ... tarball0n.tar.bz2"
+
+}
+
+# Searches for mounted image and set ROOTFS as that image mount point
+# Alternatively, sets ROOTFS as user input 
+# or assume ROOTFS to be rootfs
+set_rootfs() {
+    if [ "$#" -lt "1" ]; then
+        echo "get_rootfs(): Argument(s) missing."
+        exit 202
+    fi
+
+    # get rootfs from provided argument
+    # $1: URCade.img, $2: rootfs
+    # Gets rootfs from file.img
+    # Finds which loop device is in use by this image file
+    ULOOP=$(sudo losetup | grep $1 | cut -d " " -f1)
+    if [ ! -z "$ULOOP" ]; then
+        # Finds where the image is mounted 
+        UMNTP=$(mount | grep "${ULOOP}" | head -1 | cut -d " " -f3)
+    fi
+
+    # If a loopdevice was found and was mounted. 
+    if [ ! -z "$UMNTP" ]; then
+        ROOTFS=$(echo ${UMNTP##*/})
+    else
+        # Else, the rootfs will be either given by the user, or the default 'rootfs'
+        if [ ! -z "$2" ]; then
+            ROOTFS="$2"
+        else
+            ROOTFS="rootfs"
+        fi
+    fi
+}
+
+# Check if received file is an image file
+check_img_file() {
+    if [ -z $1 ]; then
+        echo "check_img_file(): I need an image file"
+        exit 203
+    fi
+
+    if ! file $1 | grep -i "partition" > /dev/null 2>&1; then
+        echo "$1 does not seem to be a system image file!"
+        exit 204
+    fi
+}
+
+# ${ROOTFS}/boot will always exist on a mounted imagefile, as it 
+# needs to be partitined in order to be used with URCade
+# $2 from caller is our $1
+check_mount() {
+    if [ -d ${ROOTFS}/boot ]; then
+        echo -e "[$ROOTFS] already in use by "
+        ./$0 -d
+        echo "Please choose another mount point."
+        exit 205
+    fi
+}
+
+check_umount() {
+    #set_rootfs $1 $2 
+    if [ ! -d ${ROOTFS}/boot ]; then
+        echo "$1 not mounted. Nothing to do."
+        exit 206
+    fi
+}
+
+do_clean_stock() {
+	./$0 -m $1 $2
+	echo "rm -rf $2/opt/retropie/supplementary/splashscreens/*" && echo "Splashes : OK"
+	echo "rm -rf $2/opt/retropie/configs/all/emulationstation/themes/carbon" && echo "Carbon : OK"
+	./$0 -u $1
+}
+
+create_img_file() {
+    file_size=$((($1+500)/1000))
+    new_img_file="URCade-X.Y_NO-ROMs_${file_size}G.img"
+    echo "Creating new image file for (${file_size}G) devices. Please wait..."
+    sudo dd if=/dev/zero of=${new_img_file} bs=1M count="$1" status=progress
+    sudo chown 1000:1000 $new_img_file
+
+}
+
+create_loop() {
+    create_img_file 3700
+    #echo "Choose image file size template"
+    #echo "A - 4GB"
+    #echo "B - 8GB"
+    #echo "C - 16GB"
+    #echo "D - 32GB"
+    #echo "E - 64GB"
+    #echo "F - 128GB"
+    #echo "G - 256GB"
+    #echo "Q - Quit"
+
+    #read OPT
+    #case "$OPT" in
+        #"a"|"A") create_img_file 3500   ;;
+        #"b"|"B") create_img_file 7500   ;;
+        #"c"|"C") create_img_file 15500  ;;
+        #"d"|"D") create_img_file 31500  ;;
+        #"e"|"E") create_img_file 63500  ;;
+        #"f"|"F") create_img_file 127500 ;;
+        #"g"|"G") create_img_file 255500 ;;
+        #"q"|"Q") return                 ;;
+    #esac
+}
+
+display_loop() {
+    sudo losetup -ln | tr -s " " | cut -d " " -f1,6
+}
+
+loop_on() {
+    loopdev="$(sudo losetup -f)"
+    if [ -z "$loopdev" ]; then
+        echo -e "Error locating an usable loop device! Aborting..."
+        exit 207
+    else
+        echo -e "Using $loopdev as loopback device"
+        sudo losetup -P ${loopdev} $1 && echo "[$loopdev ---> $1]:Ok"
+    fi
+}
+
+mount_on() {
+    #set_rootfs $1 $2
+    if [ ! -d ${ROOTFS} ]; then sudo mkdir ${ROOTFS}; fi
+    sudo mount ${loopdev}p2 ${ROOTFS} && echo "[${loopdev}p2 ---> ${ROOTFS}]:Ok"
+    if [ ! -d ${ROOTFS}/boot ]; then sudo mkdir ${ROOTFS}/boot; fi
+    sudo mount -o uid=$(id -u) ${loopdev}p1 ${ROOTFS}/boot && echo "[${loopdev}p1 ---> ${2}/boot]:Ok"
+}
+
+loop_off() {
+    sudo losetup --detach-all && echo "[loopdevices released]:Ok"
+}
+
+mount_off() {
+    sudo sync && echo "Sync is done!"
+    sudo umount ${ROOTFS}/boot && echo "umount ${ROOTFS}/boot : ok"
+    sudo umount ${ROOTFS} && echo "umount ${ROOTFS} : ok" 
+    
+    if [ -d ${ROOTFS} ]; then 
+        sudo rmdir ${ROOTFS}/boot 2> /dev/null
+        sudo rmdir ${ROOTFS} 2> /dev/null 
+    fi
+}
+
+# These are the actual mount/umount functions
+# They will make use of all other verification/validation functions
+# and then perform the actual mounting/umounting of the image files
+do_mount() {
+    check_img_file $1
+    set_rootfs $1 $2
+    check_mount 
+    loop_on $1
+    mount_on 
+}
+
+do_umount() {
+    check_img_file $1
+    set_rootfs $1 $2
+    check_umount
+    mount_off 
+    loop_off
+}
+
+# Partition the image file or device provided
+partition_it() {
+    # This sed removes comments before fdisk is called
+    sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' <<-EOF | sudo fdisk $1
+      o # clear the in memory partition table
+      n # new partition
+      p # primary partition
+      1 # partition number 1
+        # default - start at beginning of disk 
+      +${2} # boot parttion with custom size
+      t # Selects the type for the partition
+      c # vFAT
+      n # new partition
+      p # primary partition
+      2 # partion number 2
+        # default, start immediately after preceding partition
+        # default, extend partition to end of disk
+      p # print the in-memory partition table
+      w # write the partition table
+      q # and we're done
+EOF
+}
+
+# Save image and rootfs, as we will be shitfting a log 
+imagefile=$2
+rootfs=$3
+
+case "$1" in
+    "-c")
+        create_loop
+        exit
+        ;;
+    "-d")
+        display_loop
+        exit
+        ;;
+esac
+
+if [ "$#" -lt "2" ]; then
+    help_me
+    exit 201
+fi
+
+case "$1" in
+    "-l")
+        check_img_file $imagefile
+        sudo fdisk -l $imagefile | grep -i "identifier"
+        ;;
+
+    "-m")
+        do_mount $imagefile $rootfs
+        ;;
+
+    "-u")
+        do_umount $imagefile $rootfs
+        ;;
+
+    "-R")
+        do_clean_stock $imagefile $rootfs
+        ;;
+
+    "-i")
+        if [ "$#" -lt "4" ]; then
+            echo "Argument missing."
+            echo "I need image file, rootfs and extra tarball(s) to be installed"
+            exit 208
+        fi
+        
+        do_mount $imagefile $rootfs
+
+        if [ ! -d $3 ]; then
+            echo "Can't find rootfs. Is img mounted?"
+            exit 209
+        fi
+
+        # $0: config_loop, $1: -i, $2: URCade.img, $3: rootfs, $4 boot.tar.xz, $5: rootfs.tar.xz, ...
+        echo "Transferring files to $imagefile, mounted on $ROOTFS ..."
+        shift # Gets rid of -i
+        shift # Gets rid of URCade.img 
+        shift # Gets rid of rootfs
+        for f in $@
+        do
+            if [ -f $f ]; then
+                if file "$f" | grep -i "compressed" > /dev/null 2>&1; then
+                    if echo "$f" | grep -i "boot.tar" > /dev/null 2>&1; then
+                        sudo tar -x --keep-directory-symlink -f $f -C ${ROOTFS}/boot 2> /dev/null 
+                    else
+                        sudo tar -x --keep-directory-symlink -f $f -C ${ROOTFS}/ 2> /dev/null 
+                    fi
+    
+                    echo "$(basename $f) : [OK]"
+                else
+                   echo "Error! $f is not a tarball. Skipping..."
+                fi
+            else
+                echo "Error! $f does not seem to be a file at all!"
+                do_umount $imagefile $rootfs
+                exit 210
+            fi
+        done
+
+        do_umount $imagefile $rootfs
+        ;;
+
+    "-s")
+        do_mount $imagefile $rootfs
+
+        # If we can't find fstab, image has not received OS files yet!
+        if [ ! -f ${ROOTFS}/etc/fstab ]; then
+            echo -e "Can't find image's fstab!"
+            echo -e "Is $imagefile ready for this?"
+            echo -e "Try -i option"
+            do_umount $imagefile $rootfs
+            exit 211
+        fi
+
+        # Sanity check
+        if [ ! -d "${TEMPLATES}" ]; then
+            echo -e "Can't find ${TEMPLATES}"
+            exit 212
+        fi
+
+        # Extracts PARTUUID from image file
+        new_uuid="$(sudo blkid $2 -o export | grep UUID | cut -d "=" -f2)"
+
+        # Update values inside rootfs
+        sudo chmod 666 ${ROOTFS}/etc/fstab
+        sed "s/_partuuid_/$new_uuid/g" ${TEMPLATES}/fstab.template > ${ROOTFS}/etc/fstab && \
+            echo "[fstab ---> $ROOTFS]: OK"
+        sed "s/_partuuid_/$new_uuid/g" ${TEMPLATES}/cmdline.txt.template > ${ROOTFS}/boot/cmdline.txt && \
+            echo "[cmdline.txt ---> $ROOTFS]: OK"
+
+        sudo chmod 644 ${ROOTFS}/etc/fstab
+        sudo chown root:root ${ROOTFS}/etc/fstab 
+
+        do_umount $imagefile $rootfs
+        ;;
+
+    "-p")
+        if [ -z $3 ]; then
+            size="64M"
+        else
+            size="$3"
+        fi
+
+        partition_it $imagefile $size 
+        ;;
+
+    "-f")
+        loop_on $imagefile
+        sudo mkfs.vfat -n "boot" ${loopdev}p1 > /dev/null 2>&1 && echo "[${loopdev}p1:fat32]:OK"
+        sudo mkfs.ext4 -F -L "urcade" -m0 ${loopdev}p2 > /dev/null 2>&1 && echo "[${loopdev}p2:ext4]:OK"
+        loop_off
+        sudo fdisk -l $imagefile | grep -i "identifier"
+        ;;
+
+    *)
+        help_me
+        echo "$1 is an invalid option."
+        ;;
+esac
+

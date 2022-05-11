@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+#  Autor: Gabriel Marques <snortt@gmail.com>
+#  Criado: Seg 04 Ago 2014 13:02:41 BRT
+#
+sudo bash -c 'echo 3 > /proc/sys/vm/drop_caches'
+

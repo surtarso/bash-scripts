@@ -1,0 +1,54 @@
+#!/bin/bash
+# 
+# Logs unauthorized logins attempts, based on records from /var/log/auth.log
+# 
+# Gabriel Marques 
+# snortt@gmail.com
+#
+# Tue May 26 01:06:55 EDT 2020
+
+me=$(id -u)
+
+if [ "$me" -ne "0" ]; then
+	echo -e "I need to be root"
+	exit 201
+fi
+
+AUTHFILE="/var/log/auth.log"
+OUTFILE="Attack_Attempts.txt"
+
+echo -e "These are the unauthorized login attemps registered until $(date), as found in ${AUTHFILE}" > ${OUTFILE}
+echo -e "---------------------" >> ${OUTFILE}
+echo -e "As user pi:" >> ${OUTFILE}
+echo -e "-----------" >> ${OUTFILE}
+total_pi="0"
+for entry in $(grep Failed ${AUTHFILE} | grep -w 'pi' | awk -F " " '{print $1 " " $2 " " $3 ", user:" $9 ", ip: " $11 }' | nl | tee -a ${OUTFILE})
+do
+    ((total_pi++))
+done
+echo "Total as user Pi: $total_pi" | tee -a ${OUTFILE}
+
+echo -e "" >> ${OUTFILE}
+echo -e "As user root:" >> ${OUTFILE}
+echo -e "-----------" >> ${OUTFILE}
+total_root="0"
+for entry in $(grep Failed ${AUTHFILE} | grep -w 'root' | awk -F " " '{print $1 " " $2 " " $3 ", user:" $9 ", ip: " $11 }' | nl | tee -a ${OUTFILE})
+do
+    ((total_root++))
+done
+echo "Total as user root: $total_root" | tee -a ${OUTFILE}
+
+echo -e "" >> ${OUTFILE}
+echo -e "As another user:" >> ${OUTFILE}
+echo -e "----------------" >> ${OUTFILE}
+total_other="0"
+for entry in $(grep Failed ${AUTHFILE} | grep -wi 'invalid user' | awk -F " " '{print $1 " " $2 " " $3 ", user:" $11 ", ip: " $13 }' | sort -k4 | nl | tee -a ${OUTFILE})
+do
+    ((total_other++))
+done
+echo "Total as other user: $total_other" | tee -a ${OUTFILE}
+
+echo -e "" >> ${OUTFILE}
+echo -e "You can check the banned IPs list with fail2ban-client status ssh sshd" >> ${OUTFILE}
+
+echo "Report saved in ${OUTFILE}"

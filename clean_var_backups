@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# Get rid of old /var/backups stuff.
+#
+# Snortt - snortt@gmail.com
+# Qui Out 20 17:33:02 BRST 2011
+
+BKPDIR="/var/backups/"
+FILES2DEL="gz"
+
+echo -e "Cleanning up old stuff..."
+for ext in $FILES2DEL
+do
+	find ${BKPDIR} -type f -name "*.${ext}" -exec rm -f {} \;
+	echo -e "${ext} :: [OK]"
+done
+

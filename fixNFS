@@ -1,0 +1,6 @@
+#!/bin/bash
+
+## NFS SERVER
+sudo service nfs-server restart
+
+sudo service nfs-server status

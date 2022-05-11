@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+# Removes old kernels from the system
+#
+# Gabriel Marques 
+# snortt@gmail.com
+# Sat Feb 15 13:29:59 EST 2020
+# 
+
+current_uname=$(uname -r)
+current_version=$(echo ${current_uname%-*})
+packages="$(dpkg -l | grep 'ii' | grep -e 'linux\-\(image\|headers\|modules\)\-[e,0-9]' | awk -F " " '{print $2}' | grep -v $current_version)"
+
+echo "Removing $packages..."
+sudo apt-get -y purge $packages && \
+echo "Kernel Packages :: OK"	
+cd /lib/modules
+sudo rm -rf $(ls | grep -v $(echo ${current_version})) 2> /dev/null && \
+echo "Additional local modules :: OK"
+
