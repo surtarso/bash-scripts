@@ -3,10 +3,16 @@
 # Enters Develpment folder and pulls all git projects
 # Tarso Galvao 06/2022
 
-cd ~/Development
+HOME=~
+DEVDIR="/Development"
 
-#if [ -d ../Development ]; then exit 1; fi
+#enter home/dev
+cd ${HOME}${DEVDIR}
 
+#check if really in dev dir
+if [ ! -d ..${DEVDIR} ]; then exit 1; fi
+
+#pull all
 for d in *; do
 	if [ -d $d ]; then
 		cd $d;
